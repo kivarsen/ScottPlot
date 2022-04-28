@@ -250,7 +250,43 @@ namespace ScottPlot.Avalonia
             return cm;
         }
 
-        public void DefaultRightClickEvent(object sender, EventArgs e) => GetDefaultContextMenu().Open(this);
+        public void DefaultRightClickEvent(object sender, EventArgs e)
+        {
+            var cm = GetDefaultContextMenu();
+            ShowContextMenu(cm);
+        }
+
+        /// <summary>
+        /// Use reflection to get Avalonia's private Open() method that allows setting
+        /// requestedByPointer=true, which will cause the context menu to appear next to
+        /// the mouse cursor rather than along the top/bottom edge of the control.
+        /// This method may be called by custom right-click event handlers.
+        /// </summary>
+        /// <param name="cm">The context menu to display</param>
+        public void ShowContextMenu(ContextMenu cm)
+        {
+            // Get the private void Open(Control control, Control placementTarget, bool requestedByPointer) method
+            System.Reflection.MethodInfo? openMethod = cm.GetType().GetMethod(
+                "Open",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                null,
+                new[] { 
+                    typeof(Ava.Controls.Control),  // Argument "control"
+                    typeof(Ava.Controls.Control),  // Argument "placementControl"
+                    typeof(bool)                   // Argument "isRequestedByPointer"
+                },
+                null  // ParameterModifiers
+                );
+            if (openMethod == null)
+            {
+                System.Diagnostics.Trace.WriteLine("Error: ContextMenu.Open(Control, Control, bool) method not found. Falling back to standard Open(Control).");
+                cm.Open(this);
+            }
+            else
+            {
+                openMethod.Invoke(cm, new object[] { this, null, true });
+            }
+        }
         private void RightClickMenu_Copy_Click(object sender, EventArgs e) => throw new NotImplementedException();
         private void RightClickMenu_Help_Click(object sender, EventArgs e) => new HelpWindow().Show();
         private void RightClickMenu_AutoAxis_Click(object sender, EventArgs e) { Plot.AxisAuto(); Refresh(); }
